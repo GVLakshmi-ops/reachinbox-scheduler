@@ -5,8 +5,8 @@ A full-stack email job scheduler + dashboard, built for the ReachInbox.ai
 TypeScript/Express/BullMQ/Redis/Postgres/Elasticsearch, frontend in
 Next.js/TypeScript/Tailwind, styled to match the provided Figma.
 
-**Hosted link:** _[add your live URL here once deployed]_
-**Demo video:** _[add your video link here]_
+**Hosted link:** 
+**Demo video:** https://drive.google.com/file/d/14A5yrtU43ivOYIH5Kt1G5MKj3iDkzD6N/view?usp=sharing
 
 ---
 
