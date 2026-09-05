@@ -1,9 +1,9 @@
 # ReachInbox Scheduler
 
-A full-stack email job scheduler + dashboard, built for the ReachInbox.ai
-(Outbox Labs) Software Development Intern hiring assignment. Backend in
-TypeScript/Express/BullMQ/Redis/Postgres/Elasticsearch, frontend in
-Next.js/TypeScript/Tailwind, styled to match the provided Figma.
+A full-stack email job scheduler and dashboard for sending large batches of
+emails on a schedule, with rate limiting, restart-safe delivery, and live
+queue visibility. Backend in TypeScript/Express/BullMQ/Redis/Postgres/
+Elasticsearch, frontend in Next.js/TypeScript/Tailwind.
 
 **Hosted link:** 
 **Demo video:** https://drive.google.com/file/d/14A5yrtU43ivOYIH5Kt1G5MKj3iDkzD6N/view?usp=sharing
@@ -12,11 +12,27 @@ Next.js/TypeScript/Tailwind, styled to match the provided Figma.
 
 ## Table of contents
 
+- [Why this exists](#why-this-exists)
 - [Architecture overview](#architecture-overview)
-- [Features implemented](#features-implemented)
+- [Features](#features)
 - [Running it locally](#running-it-locally)
 - [Deploying it (hosted link)](#deploying-it-hosted-link)
 - [Assumptions, trade-offs, and shortcuts](#assumptions-trade-offs-and-shortcuts)
+
+---
+
+## Why this exists
+
+Most "send an email later" tutorials stop at a single cron job that polls a
+table every minute. That falls apart quickly once you need per-sender rate
+limits, thousands of recipients queued at once, safe restarts, and multiple
+worker processes running in parallel without double-sending anything.
+
+This project is my attempt at doing that properly: a real job queue
+(BullMQ/Redis) instead of polling, Postgres as the single source of truth,
+atomic Redis operations for rate limiting and delay enforcement so they
+stay correct under concurrency, and a dashboard on top so the whole thing
+is actually usable, not just a backend exercise.
 
 ---
 
@@ -134,38 +150,37 @@ Redis directly.
 
 ---
 
-## Features implemented
+## Features
 
-| Area | Feature | Status |
-|---|---|---|
-| Backend | TypeScript + Express + BullMQ + Redis + Postgres | ✅ |
-| Backend | BullMQ delayed jobs, zero cron anywhere | ✅ |
-| Backend | Restart persistence / reconciliation on boot | ✅ |
-| Backend | Idempotency (jobId = row id + status guard) | ✅ |
-| Backend | Configurable worker concurrency | ✅ |
-| Backend | True minimum delay between sends (concurrency-safe, Redis slot reservation) | ✅ |
-| Backend | Hourly rate limit, Redis-backed, multi-worker safe | ✅ |
-| Backend | Reschedule (not drop) on limit hit, order preserved via priority | ✅ |
-| Backend | Slack OAuth + live notification on rate-limit hit | ✅ |
-| Backend | Slack status + disconnect endpoints | ✅ |
-| Backend | Multiple senders supported | ✅ |
-| Backend | Elasticsearch indexing + search endpoint | ✅ |
-| Backend | Live BullMQ dashboard (`/admin/queues`) | ✅ |
-| Backend | Real Google OAuth login | ✅ |
-| Backend | Load-test script for 1000+ emails | ✅ |
-| Frontend | Login screen matching Figma (Google OAuth wired; email/password fields visual-only) | ✅ |
-| Frontend | Dashboard sidebar: avatar/name/email, Scheduled/Sent counts, Logout | ✅ |
-| Frontend | Connect/Disconnect Slack from the dashboard | ✅ |
-| Frontend | Top search bar wired to Elasticsearch | ✅ |
-| Frontend | Scheduled/Sent list views, loading + empty states | ✅ |
-| Frontend | Compose screen: chip-based recipients, CSV/TXT upload | ✅ |
-| Frontend | "✓ N email addresses detected" after upload | ✅ |
-| Frontend | Delay / Hourly Limit fields (wired to backend overrides) | ✅ |
-| Frontend | Working rich-text toolbar (bold/italic/underline/lists/etc.) | ✅ |
-| Frontend | Send / Send Later toggle with quick-pick + custom date/time | ✅ |
-| Frontend | Toast notifications for errors/success | ✅ |
-| Frontend | Reusable components, typed API client, TS interfaces throughout | ✅ |
-| Frontend | Figma-matched styling | ✅ |
+| Area | Feature |
+|---|---|
+| Backend | TypeScript + Express + BullMQ + Redis + Postgres |
+| Backend | BullMQ delayed jobs, zero cron anywhere |
+| Backend | Restart persistence / reconciliation on boot |
+| Backend | Idempotency (jobId = row id + status guard) |
+| Backend | Configurable worker concurrency |
+| Backend | True minimum delay between sends (concurrency-safe, Redis slot reservation) |
+| Backend | Hourly rate limit, Redis-backed, multi-worker safe |
+| Backend | Reschedule (not drop) on limit hit, order preserved via priority |
+| Backend | Slack OAuth + live notification on rate-limit hit |
+| Backend | Slack status + disconnect endpoints |
+| Backend | Multiple senders supported |
+| Backend | Elasticsearch indexing + search endpoint |
+| Backend | Live BullMQ dashboard (`/admin/queues`) |
+| Backend | Real Google OAuth login |
+| Backend | Load-test script for 1000+ emails |
+| Frontend | Login screen with Google OAuth wired up |
+| Frontend | Dashboard sidebar: avatar/name/email, Scheduled/Sent counts, Logout |
+| Frontend | Connect/Disconnect Slack from the dashboard |
+| Frontend | Top search bar wired to Elasticsearch |
+| Frontend | Scheduled/Sent list views, loading + empty states |
+| Frontend | Compose screen: chip-based recipients, CSV/TXT upload |
+| Frontend | "✓ N email addresses detected" after upload |
+| Frontend | Delay / Hourly Limit fields (wired to backend overrides) |
+| Frontend | Working rich-text toolbar (bold/italic/underline/lists/etc.) |
+| Frontend | Send / Send Later toggle with quick-pick + custom date/time |
+| Frontend | Toast notifications for errors/success |
+| Frontend | Reusable components, typed API client, TS interfaces throughout |
 
 ---
 
@@ -227,8 +242,8 @@ Visit `http://localhost:3000`.
 
 ### 4. Load test (optional)
 
-Demonstrates the "1000+ emails scheduled at once" requirement without
-actually sending 1000 real emails:
+Demonstrates scheduling 1000+ emails at once without actually sending
+1000 real emails:
 
 ```bash
 cd backend
@@ -278,13 +293,13 @@ accordingly).
 ## Assumptions, trade-offs, and shortcuts
 
 - **Elasticsearch isn't hosted for the live deployed link.** It's the
-  heaviest piece of this stack to self-host for free, and the assignment's
-  core grading criteria (scheduling, persistence, rate limiting,
-  concurrency) don't depend on it. The code handles its absence
-  gracefully — `/api/emails/search` returns a clean "unavailable" response
-  instead of crashing, and indexing failures are logged and swallowed
-  rather than blocking scheduling or sending. Search is demonstrated
-  working against a local Elasticsearch instance in the demo video.
+  heaviest piece of this stack to self-host for free, and it isn't load-
+  bearing for the core value of the project (scheduling, persistence, rate
+  limiting, concurrency). The code handles its absence gracefully —
+  `/api/emails/search` returns a clean "unavailable" response instead of
+  crashing, and indexing failures are logged and swallowed rather than
+  blocking scheduling or sending. Search is demonstrated working against a
+  local Elasticsearch instance in the demo video.
 - CSV/TXT parsing is a simple regex-based email extractor, not a full CSV
   parser library — correct for a plain leads list, but doesn't handle
   quoted fields containing commas.
@@ -292,13 +307,12 @@ accordingly).
   priority tied to original scheduled time), not a strict cross-worker
   guarantee.
 - No refresh-token handling for sessions beyond `express-session`'s
-  default store — fine for this deployment's scale, would need a
-  persistent session store (e.g. Redis-backed) for production traffic.
+  default store — fine at this scale, would need a persistent session
+  store (e.g. Redis-backed) for real production traffic.
 - The login screen's email/password fields and the Compose screen's
-  paperclip attachment button are visual-only, matching the Figma but not
-  wired to the backend — the assignment requires real Google OAuth for
-  login (implemented) and doesn't require attaching files to sent emails.
+  paperclip attachment button are visual-only — real login goes through
+  Google OAuth (implemented); attaching files to sent emails isn't wired
+  up yet.
 - `next@14.2.35` has some open `npm audit` advisories that are only fixed
-  by a major-version jump to Next 16, which wasn't tested against this
-  codebase given the assignment deadline — worth revisiting for any real
-  production use.
+  by a major-version jump to Next 16, which I haven't tested against this
+  codebase yet — worth revisiting before any real production use.
